@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from .variantcall import run_bcftools
 
 """
 Post-processing step for STAR Salmon analysis.
@@ -32,6 +33,11 @@ if __name__ == '__main__':
         postrun_outdir = config['postrun_output_dir']
     except:
         postrun_outdir = os.path.join(output_dir, "Post_Run_Results")
+    if not os.path.exists(postrun_outdir):
+        os.makedirs(postrun_outdir)
+
+    # run bcftools
+    run_bcftools(config, postrun_outdir)
 
     genome_dir = config['genome_dir']
     organisms = config['organisms']

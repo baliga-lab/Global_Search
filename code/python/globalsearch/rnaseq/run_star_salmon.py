@@ -75,6 +75,34 @@ def run_star(first_pair_group, second_pair_group, results_dir, folder_name, geno
     cmd = ' '.join(command)
     compl_proc = subprocess.run(command, check=True, capture_output=False, cwd=results_dir)
 
+####################### Samtools sorting and indexing ##########
+#
+def run_samtools_sort_and_index(results_dir):
+    bam_files = glob.glob(os.path.join(results_dir, "*.bam"))
+    if len(bam_files) == 0:
+        print("ERROR: could not sort and index - bam file not found")
+        return
+    sorted_bam_path = None
+    for f in bam_files:
+        if f.endswith("Sorted.out.bam"):
+            sorted_bam_path = f
+
+    filename = os.path.basename(bam_files[0])
+    if sorted_bam_path is None:
+        print("Using samtools to sort STAR BAM result")
+        stem = bam_files[0].replace(".bam", "").replace(".out", "")
+        sorted_bam_path = os.path.join(results_dir, "%s_Sorted.out.bam" % stem)
+        command = ['samtools', 'sort', bam_files[0], '-o',
+                   sorted_bam_path]
+        compl_proc = subprocess.run(command, check=True,
+                                    capture_output=False, cwd=results_dir)
+    if not os.path.exists(sorted_bam_path + ".bai"):
+        print("Using samtools to index sorted STAR BAM result")
+        command = ["samtools", "index", sorted_bam_path]
+        compl_proc = subprocess.run(command, check=True,
+                                    capture_output=False, cwd=results_dir)
+
+
 ####################### Deduplication (not in _old) ###############################
 def dedup(results_dir,folder_name):
     print('\033[33mRunning Deduplication! \033[0m', flush=True)
@@ -219,6 +247,9 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args):
 
     # Run STAR
     run_star(first_pair_group, second_pair_group, results_dir, folder_name, genome_dir, args)
+
+    # Run samtools, sorting and indexing
+    run_samtools_sort_and_index(results_dir)
 
     # Run Deduplication
     if args.dedup:

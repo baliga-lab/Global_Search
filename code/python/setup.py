@@ -9,9 +9,9 @@ DESCRIPTION = 'globalsearch is a collection of Python modules and command tools 
 LICENSE = 'LGPL V3'
 URI = 'https://github.com/baliga-lab/Global_Search'
 AUTHOR = 'Wei-ju Wu'
-VERSION = '0.2.8'
+VERSION = '0.2.9'
 
-KEYWORDS = ['global search', 'coral reef']
+KEYWORDS = ['global search', 'coral reef', 'rna sequencing']
 
 # See trove classifiers
 # https://testpypi.python.org/pypi?%3Aaction=list_classifiers

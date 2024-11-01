@@ -1,6 +1,11 @@
 Changes
 =======
 
+Version 0.2.9, 2024/11/01
+-------------------------
+
+  - update: STAR/Salmon pipeline integrates variant calling
+
 Version 0.2.8, 2023/06/29
 -------------------------
 
