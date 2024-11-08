@@ -64,11 +64,15 @@ def check_params(config, rna_algo):
             sys.exit("Genome directory '%s' does not contain any FASTA files" % config["genome_dir"])
 
     if len(config["includes"]) > 0:
-        # check the existence of the included directories
+        # check the existence of the included sample directories.
+        # those directories are potentially several levels deep
         for incl in config["includes"]:
-            inp_dir = os.path.join(config["input_dir"], incl)
-            if not os.path.exists(inp_dir):
-                sys.exit("Input directory '%s' does not exist" % inp_dir)
+            matches = glob.glob(os.path.join(config['input_dir'], "**", incl),
+                                recursive=True)
+            if len(matches) == 0:
+                sys.exit("Input directory '%s' does not exist" % incl)
+            else:
+                print(matches)
     try:
         check_star_options(config['star_options'])
     except ValueError as e:
