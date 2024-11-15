@@ -137,7 +137,7 @@ if __name__ == '__main__':
     except:
         pass
 
-    data_folders = rnaseq_data_folder_list(config)
+    data_folders = ['"%s"' % f for f in rnaseq_data_folder_list(config)]
     config["data_folders"] = ' '.join(data_folders)
 
     # Array specification

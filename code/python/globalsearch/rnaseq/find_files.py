@@ -10,12 +10,30 @@ import jinja2
 from fs.osfs import OSFS  # make sure we install the fs package !!!
 
 
+def _get_inner_dirs(filesys, curpath):
+    subdirs = [d for d in filesys.listdir(curpath)
+               if filesys.isdir(fs.path.combine(curpath, d))]
+    if len(subdirs) == 0:
+        return [curpath]
+
+    sdds = [_get_inner_dirs(filesys, fs.path.combine(curpath, sd))
+            for sd in subdirs]
+    flattened = []
+    for elem in sdds:
+        if isinstance(elem, list):
+            flattened.extend(elem)
+        else:
+            flattened.append(elem)
+
+    return flattened
+
+
 def rnaseq_data_folder_list(config, filesys=OSFS('/')):
     """Function to determine the list of directories that are to be submitted to
     the cluster for RNA sequencing analysis
     """
     result = []
-    pattern = re.compile('R[E]?\d+.*')
+    #pattern = re.compile('R[E]?\d+.*')
     try:
         includes_list = config['includes']
     except KeyError:
@@ -32,16 +50,24 @@ def rnaseq_data_folder_list(config, filesys=OSFS('/')):
         # ignore any errors in the include_file
         pass
 
+    input_dir = config['input_dir']
+    inner_dirs = _get_inner_dirs(filesys, input_dir)
+    inner_dirs = [d.replace(input_dir, "").lstrip('/') for d in inner_dirs]
+
     if len(includes_list) > 0:
-        # Take the list specified in the "includes" section of the configuration file
-        result = includes_list
+        includes_set = set(includes_list)
+        result = [d for d in inner_dirs
+                  if os.path.basename(d) in includes_set]
     else:
+        # we simply return inner dirs, but we might think about
+        # checking the last part against the pattern
         # take the top level directories in the input directory
         # that match the pattern
         #print("ADD TOPLEVEL FILES: %s" % config['input_dir'])
         #result = [d for d in filesys.listdir(config['input_dir']) if re.match(pattern, d)]
-        result = [d for d in filesys.listdir(config['input_dir'])
-                if filesys.isdir(fs.path.combine(config['input_dir'], d))]
+        #result = [d for d in filesys.listdir(config['input_dir'])
+        #        if filesys.isdir(fs.path.combine(config['input_dir'], d))]
+        result = inner_dirs
     return result
 
 

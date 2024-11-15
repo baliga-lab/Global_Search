@@ -36,9 +36,6 @@ if __name__ == '__main__':
     if not os.path.exists(postrun_outdir):
         os.makedirs(postrun_outdir)
 
-    # run bcftools
-    run_bcftools(config, postrun_outdir)
-
     genome_dir = config['genome_dir']
     organisms = config['organisms']
     #org1, org2 = os.path.basename(genome_dir).split('_')
@@ -52,3 +49,7 @@ if __name__ == '__main__':
         os.makedirs(multiqc_outdir)
     command = ['multiqc', '--outdir', multiqc_outdir, output_dir]
     compl_proc = subprocess.run(command, check=True, capture_output=False, cwd=output_dir)
+
+    # run bcftools
+    run_bcftools(config, postrun_outdir)
+

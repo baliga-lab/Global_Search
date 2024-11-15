@@ -19,7 +19,8 @@ DESCRIPTION = """run_STAR_SALMON.py - run STAR and Salmon"""
 ### --outSAMattrRGline ID:${i%_TF_R1_val_1.fq.gz}
 ### https://github.com/BarshisLab/danslabnotebook/blob/main/CBASSAS_GenotypeScreening.md
 
-def run_star(first_pair_group, second_pair_group, results_dir, folder_name, genome_dir, args):
+def run_star(first_pair_group, second_pair_group, results_dir, folder_name,
+             genome_dir, is_gzip, args):
     print('\033[33mRunning STAR! \033[0m', flush=True)
     outfile_prefix = '%s/%s_%s_' % (results_dir, folder_name, args.starPrefix)
     star_options = ["--runThreadN", str(args.runThreadN),
@@ -27,13 +28,14 @@ def run_star(first_pair_group, second_pair_group, results_dir, folder_name, geno
                     "--outSAMstrandField", "intronMotif",
                     "--outFilterIntronMotifs", "RemoveNoncanonical",
                     "--outSAMtype", "BAM", "Unsorted",
-                    "--limitBAMsortRAM", str(args.limitBAMsortRAM),
-                    "--readFilesCommand", "zcat",
-                    "--outReadsUnmapped", "Fastx",
-                    "--outFilterMismatchNmax", str(args.outFilterMismatchNmax),
-                    "--outFilterMismatchNoverLmax", str(args.outFilterMismatchNoverLmax),
-                    "--outFilterScoreMinOverLread", str(args.outFilterScoreMinOverLread),
-                    "--outFilterMatchNmin", str(args.outFilterMatchNmin)]
+                    "--limitBAMsortRAM", str(args.limitBAMsortRAM)]
+    if is_gzip:
+        star_options.extend(["--readFilesCommand", "zcat"])
+    star_options.extend(["--outReadsUnmapped", "Fastx",
+                         "--outFilterMismatchNmax", str(args.outFilterMismatchNmax),
+                         "--outFilterMismatchNoverLmax", str(args.outFilterMismatchNoverLmax),
+                         "--outFilterScoreMinOverLread", str(args.outFilterScoreMinOverLread),
+                         "--outFilterMatchNmin", str(args.outFilterMatchNmin)])
 
     genome_load = "LoadAndKeep"  # This is the default, for efficiency
     if args.twopassMode:
@@ -246,7 +248,7 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args):
     first_pair_group, second_pair_group = collect_trimmed_data(data_trimmed_dir, is_gzip, is_paired_end)
 
     # Run STAR
-    run_star(first_pair_group, second_pair_group, results_dir, folder_name, genome_dir, args)
+    run_star(first_pair_group, second_pair_group, results_dir, folder_name, genome_dir, is_gzip, args)
 
     # Run samtools, sorting and indexing
     run_samtools_sort_and_index(results_dir)
