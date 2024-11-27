@@ -9,7 +9,7 @@ DESCRIPTION = 'globalsearch is a collection of Python modules and command tools 
 LICENSE = 'LGPL V3'
 URI = 'https://github.com/baliga-lab/Global_Search'
 AUTHOR = 'Wei-ju Wu'
-VERSION = '0.2.9'
+VERSION = '0.3.0'
 
 KEYWORDS = ['global search', 'coral reef', 'rna sequencing']
 
@@ -29,7 +29,7 @@ CLASSIFIERS = [
     "Programming Language :: Python :: Implementation :: CPython",
     "Topic :: Software Development :: Libraries :: Python Modules"
     ]
-INSTALL_REQUIRES = ['jinja2', 'fs', 'xmlrunner', 'rpy2']
+INSTALL_REQUIRES = ['jinja2', 'fs', 'rpy2']
 
 
 if __name__ == '__main__':

@@ -5,7 +5,6 @@ find_files_test.py - Unit tests for the globalsearch.rnaseq.find_files module
 """
 
 import unittest
-import xmlrunner
 import os, sys
 import fs
 import globalsearch.rnaseq.find_files as find_files
@@ -104,7 +103,4 @@ class FindFilesTest(unittest.TestCase):
 if __name__ == '__main__':
     SUITE = []
     SUITE.append(unittest.TestLoader().loadTestsFromTestCase(FindFilesTest))
-    if len(sys.argv) > 1 and sys.argv[1] == 'xml':
-        xmlrunner.XMLTestRunner(output='test-reports').run(unittest.TestSuite(SUITE))
-    else:
-        unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(SUITE))
+    unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(SUITE))

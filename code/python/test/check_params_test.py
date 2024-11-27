@@ -5,7 +5,6 @@ check_params_test.py - Unit tests for the globalsearch.control.gs_prepare module
 """
 
 import unittest
-import xmlrunner
 import os, sys
 import fs
 
@@ -37,7 +36,4 @@ class CheckParamsTest(unittest.TestCase):
 if __name__ == '__main__':
     SUITE = []
     SUITE.append(unittest.TestLoader().loadTestsFromTestCase(CheckParamsTest))
-    if len(sys.argv) > 1 and sys.argv[1] == 'xml':
-        xmlrunner.XMLTestRunner(output='test-reports').run(unittest.TestSuite(SUITE))
-    else:
-        unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(SUITE))
+    unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(SUITE))

@@ -5,7 +5,6 @@ trim_galore_test.py - Unit tests for the globalsearch.rnaseq.trim_galore module
 """
 
 import unittest
-import xmlrunner
 import os, sys
 import fs
 import globalsearch.rnaseq.trim_galore as trim_galore
@@ -64,7 +63,4 @@ class TrimGaloreTest(unittest.TestCase):
 if __name__ == '__main__':
     SUITE = []
     SUITE.append(unittest.TestLoader().loadTestsFromTestCase(TrimGaloreTest))
-    if len(sys.argv) > 1 and sys.argv[1] == 'xml':
-        xmlrunner.XMLTestRunner(output='test-reports').run(unittest.TestSuite(SUITE))
-    else:
-        unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(SUITE))
+    unittest.TextTestRunner(verbosity=2).run(unittest.TestSuite(SUITE))
