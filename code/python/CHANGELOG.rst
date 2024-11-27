@@ -1,6 +1,11 @@
 Changes
 =======
 
+Version 0.3.0, 2024/11/27
+-------------------------
+
+  - update: compatibility with Python 3.12
+
 Version 0.2.9, 2024/11/01
 -------------------------
 
