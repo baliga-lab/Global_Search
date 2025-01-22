@@ -33,7 +33,8 @@ def create_genome_index(genome_dir, genome_fasta, args):
         index_command += ["sjdbGTFfeatureExon", args.sjdbGTFfeatureExon]
     if args.sjdbGTFtagExonParentTranscript is not None:
         index_command += ["sjdbGTFtagExonParentTranscript", args.sjdbGTFtagExonParentTranscript]
-    if args.sjdbGTFtagExonParentTranscript is not None:
+    if (args.sjdbGTFtagExonParentTranscript is not None and
+        args.sjdbGTFtagExonParentGene is not None):
         index_command += ["sjdbGTFtagExonParentGene", args.sjdbGTFtagExonParentGene]
 
     index_cmd = ' '.join(index_command)
