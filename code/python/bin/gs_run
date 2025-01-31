@@ -1,0 +1,30 @@
+#!/bin/bash
+
+# Run GlobalSearch standalone without cluster
+
+if [ "$#" -ne 1 ] ; then
+	echo "Usage: gs_run <config-file>"
+	exit 1
+fi
+
+tmpfile1=$(mktemp /tmp/slurm_idx_job.XXXXXX)
+tmpfile2=$(mktemp /tmp/slurm_stsal_job.XXXXXX)
+echo "Check preconditions..."
+output=$(python3 -m globalsearch.control.gs_prepare $1)
+
+if [ $? == 0 ] ; then
+    algo=$(echo "$output" | tail -1)
+    if [ $algo == 'star_salmon' ]; then
+	    echo "Running STAR/Salmon workflow"
+        python3 -m globalsearch.rnaseq.index_star dummy --config $1
+    elif [ $algo == 'kallisto' ]; then
+	    echo "Running Kallisto workflow"
+    else
+	    echo "UNSUPPORTED ALGORITHM: $algo"
+	exit 1
+    fi
+else
+    echo "ERROR WHILE PREPARING"
+    echo "$output"
+    exit 1
+fi

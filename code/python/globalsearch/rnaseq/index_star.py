@@ -13,9 +13,23 @@ import argparse
 import os
 import subprocess
 import glob
+import json
 
 
 DESCRIPTION = """index_star_salmon.py - Create genome index using STAR"""
+
+class STARIndexArgs:
+    def __init__(self, runThreadN, genomeChrBinNbits, genomeSAindexNbases,
+                 sjdbGTFfeatureExon, sjdbGTFtagExonParentTranscript,
+                 sjdbGTFtagExonParentGene):
+        # mandatory
+        self.runThreadN = runThreadN
+        self.genomeChrBinNbits = genomeChrBinNbits
+        self.genomeSAindexNbases = genomeSAindexNbases
+        # optional
+        self.sjdbGTFfeatureExon = None
+        self.sjdbGTFtagExonParentTranscript = None
+        self.sjdbGTFtagExonParentGene = None
 
 
 ####################### Create STAR index ###############################
@@ -49,10 +63,43 @@ def create_genome_index(genome_dir, genome_fasta, args):
         print('finished indexing with STAR', flush=True)
 
 
+def run_config(configfile):
+    with open(configfile) as infile:
+        config = json.load(infile)
+
+    genome_fasta = config['genome_fasta']
+    genome = os.path.basename(os.path.normpath(config['genome_dir']))
+    print("running index on: ", genome, " genome fasta: ", genome_fasta)
+    star_index_options = config['star_index_options']
+    try:
+        sjdbGTFfeatureExon = star_index_options['sjdbGTFfeatureExon']
+    except KeyError:
+        sjdbGTFfeatureExon = None
+
+    try:
+        sjdbGTFtagExonParentTranscript = star_index_options['sjdbGTFtagExonParentTranscript']
+    except KeyError:
+        sjdbGTFtagExonParentTranscript = None
+
+    try:
+        sjdbGTFtagExonParentGene = star_index_options['sjdbGTFtagExonParentGene']
+    except KeyError:
+        sjdbGTFtagExonParentGene = None
+
+    index_args = STARIndexArgs(star_index_options['runThreadN'],
+                               star_index_options['genomeChrBinNbits'],
+                               star_index_options['genomeSAindexNbases'],
+                               sjdbGTFfeatureExon, sjdbGTFtagExonParentTranscript,
+                               sjdbGTFtagExonParentGene)
+    genome_dir = config['genome_dir']
+    create_genome_index(genome_dir, genome_fasta, index_args)
+
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description=DESCRIPTION)
     parser.add_argument('genomedir', help='genome directory')
+    parser.add_argument('--config', help='config file, overrides everything else')
     parser.add_argument('--genome_fasta', help='genome FASTA file')
     parser.add_argument('--runThreadN', type=int, default=32)
     parser.add_argument('--genomeChrBinNbits', type=int, default=16)
@@ -62,8 +109,12 @@ if __name__ == '__main__':
     parser.add_argument("--sjdbGTFtagExonParentGene")
 
     args = parser.parse_args()
-    if args.genome_fasta is not None and os.path.exists(args.genome_fasta):
-        genome_fasta = args.genome_fasta
+    if args.config is not None:
+        # override: using config file
+        run_config(args.config)
     else:
-        genome_fasta = glob.glob('%s/*.fasta' % (args.genomedir))[0]
-    create_genome_index(args.genomedir, genome_fasta, args)
+        if args.genome_fasta is not None and os.path.exists(args.genome_fasta):
+            genome_fasta = args.genome_fasta
+        else:
+            genome_fasta = glob.glob('%s/*.fasta' % (args.genomedir))[0]
+        create_genome_index(args.genomedir, genome_fasta, args)

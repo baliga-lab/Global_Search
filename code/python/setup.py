@@ -46,4 +46,4 @@ if __name__ == '__main__':
           zip_safe=False,
           classifiers=CLASSIFIERS,
           install_requires=INSTALL_REQUIRES,
-          scripts=['bin/gs_submit', 'bin/gs_prepare'])
+          scripts=['bin/gs_submit', 'bin/gs_prepare', 'bin/gs_run'])
