@@ -120,7 +120,8 @@ def __check_command(command, num_info_components=1, version_index=-1,
 
 
 def check_salmon():
-    __check_command("salmon", num_info_components=2, check_version="0.13.1")
+    #__check_command("salmon"), num_info_components=2, check_version="0.13.1")
+    __check_command("salmon")
 
 
 def check_star():
