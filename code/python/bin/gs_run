@@ -17,6 +17,9 @@ if [ $? == 0 ] ; then
     if [ $algo == 'star_salmon' ]; then
 	    echo "Running STAR/Salmon workflow"
         python3 -m globalsearch.rnaseq.index_star dummy --config $1
+        echo "python3 -m globalsearch.rnaseq.run_star_salmon --config $1 $data_folder dummmy dummy dummy"
+        python3 -m globalsearch.rnaseq.run_star_salmon --config $1 dummy dummmy dummy dummy
+
     elif [ $algo == 'kallisto' ]; then
 	    echo "Running Kallisto workflow"
     else

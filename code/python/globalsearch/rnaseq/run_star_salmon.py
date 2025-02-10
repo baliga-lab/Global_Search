@@ -8,11 +8,54 @@
 import glob, sys, os, string, datetime, re
 import argparse
 import subprocess
+import json
 
-from .find_files import find_fastq_files
+from .find_files import find_fastq_files, rnaseq_data_folder_list
 from .trim_galore import trim_galore, collect_trimmed_data, create_result_dirs
 
 DESCRIPTION = """run_STAR_SALMON.py - run STAR and Salmon"""
+
+
+class STARSalmonArgs:
+    """Class that fakes a command line argument object"""
+    def __init__(self, config):
+        star_options = config['star_options']
+        self.dedup = config['deduplicate_bam_files']
+        self.fastq_patterns = ','.join(config['fastq_patterns'])
+        self.salmon_genome_fasta = config['genome_fasta']
+        self.runThreadN = config['star_index_options']['runThreadN']
+        self.limitBAMsortRAM = 5784458574
+        self.outFilterMatchNmin = star_options['outFilterMatchNmin']
+        self.outFilterMismatchNmax = star_options['outFilterMismatchNmax']
+        self.outFilterMismatchNoverLmax = star_options['outFilterMismatchNoverLmax']
+        self.outFilterScoreMinOverLread = star_options['outFilterScoreMinOverLread']
+        self.twopassMode = star_options['twopassMode']
+        self.genome_gff = config['genome_gff']
+        self.outSAMattributes = ','.join(config['star_options']['outSAMattributes'])
+        try:
+            self.sjdbGTFfeatureExon = star_options['sjdbGTFfeatureExon']
+        except:
+            self.sjdbGTFfeatureExon = None
+        try:
+            self.sjdbGTFtagExonParentGene = star_options['sjdbGTFtagExonParentGene']
+        except:
+            self.sjdbGTFtagExonParentGene = None
+        try:
+            self.quantMode = star_options['quantMode']
+        except:
+            self.quantMode = None
+
+        dedup_prefix = '_dedup' if config['deduplicate_bam_files'] else ''
+        self.starPrefix = 'star_%s_%s_%s_%s%s' % (star_options['outFilterMismatchNmax'],
+                                                  star_options['outFilterMismatchNoverLmax'],
+                                                  star_options['outFilterScoreMinOverLread'],
+                                                  star_options['outFilterMatchNmin'],
+                                                  dedup_prefix)
+        self.salmonPrefix = 'salmon_%s_%s_%s_%s%s' % (star_options['outFilterMismatchNmax'],
+                                                      star_options['outFilterMismatchNoverLmax'],
+                                                      star_options['outFilterScoreMinOverLread'],
+                                                      star_options['outFilterMatchNmin'],
+                                                      dedup_prefix)
 
 ####################### Run STAR #####################################
 ### We need to add Read GRoup info
@@ -155,9 +198,9 @@ def dedup(results_dir,folder_name):
 
 ####################### Run Salmon Count ###############################
 # WW: Check the names of the input files they will be different from _out
-def run_salmon_quant(results_dir, folder_name, genome_fasta):
+def run_salmon_quant(results_dir, folder_name, genome_fasta, args):
     outfile_prefix = '%s/%s_%s_' %(results_dir, folder_name, args.starPrefix)
-    print(outfile_prefix, flush=True)
+    print("OUTFILE PREFIX: ", outfile_prefix, flush=True)
     print('\033[33mRunning salmon-quant! \033[0m', flush=True)
     # check if we are performing deduplication
     if args.dedup:
@@ -262,10 +305,24 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args):
     if args.salmon_genome_fasta is not None:
         genome_fasta = args.salmon_genome_fasta
 
-    run_salmon_quant(results_dir, folder_name, genome_fasta)
+    run_salmon_quant(results_dir, folder_name, genome_fasta, args)
     folder_count += 1
 
     return data_trimmed_dir, fastqc_dir, results_dir
+
+
+def run_config(configfile):
+    """Run from config file"""
+    with open(configfile) as infile:
+        config = json.load(infile)
+
+    starsalmon_args = STARSalmonArgs(config)
+    data_folders = rnaseq_data_folder_list(config)
+    for data_folder in data_folders:
+        run_pipeline(os.path.join(config['input_dir'], data_folder),
+                     config['output_dir'],
+                     config['genome_dir'], config['genome_fasta'],
+                     starsalmon_args)
 
 
 if __name__ == '__main__':
@@ -297,15 +354,20 @@ if __name__ == '__main__':
     parser.add_argument('--sjdbGTFtagExonParentGene')
     parser.add_argument('--quantMode', nargs="+")
     parser.add_argument('--salmon_genome_fasta')
+    parser.add_argument('--config', help="config file, override everything")
 
     args = parser.parse_args()
 
     now = datetime.datetime.now()
     timeprint = now.strftime("%Y-%m-%d %H:%M")
-    data_folder = "%s/%s" % (args.dataroot, args.indir)
-    if args.genome_fasta is not None and os.path.exists(args.genome_fasta):
-        genome_fasta = args.genome_fasta
-    else:
-        genome_fasta = glob.glob('%s/*.fasta' % (args.genomedir))[0]
 
-    data_trimmed_dir,fastqc_dir,results_dir = run_pipeline(data_folder, args.outdir, args.genomedir, genome_fasta, args)
+    if args.config is not None:
+        run_config(args.config)
+    else:
+        data_folder = "%s/%s" % (args.dataroot, args.indir)
+        if args.genome_fasta is not None and os.path.exists(args.genome_fasta):
+            genome_fasta = args.genome_fasta
+        else:
+            genome_fasta = glob.glob('%s/*.fasta' % (args.genomedir))[0]
+
+        data_trimmed_dir,fastqc_dir,results_dir = run_pipeline(data_folder, args.outdir, args.genomedir, genome_fasta, args)
