@@ -48,6 +48,10 @@ class STARSalmonArgs:
             self.quantMode = star_options['quantMode']
         except:
             self.quantMode = None
+        try:
+            self.limitSjdbInsertNsj = star_options['limitSjdbInsertNsj']
+        except:
+            self.limitSjdbInsertNsj = None
 
         dedup_prefix = '_dedup' if config['deduplicate_bam_files'] else ''
         self.starPrefix = 'star_%s_%s_%s_%s%s' % (star_options['outFilterMismatchNmax'],
