@@ -52,6 +52,10 @@ class STARSalmonArgs:
             self.limitSjdbInsertNsj = star_options['limitSjdbInsertNsj']
         except:
             self.limitSjdbInsertNsj = None
+        try:
+            self.sjdbOverhang = star_options['sjdbOverhang']
+        except:
+            self.sjdbOverhang = None
 
         dedup_prefix = '_dedup' if config['deduplicate_bam_files'] else ''
         self.starPrefix = 'star_%s_%s_%s_%s%s' % (star_options['outFilterMismatchNmax'],
