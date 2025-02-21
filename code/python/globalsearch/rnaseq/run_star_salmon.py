@@ -41,6 +41,10 @@ class STARSalmonArgs:
         except:
             self.sjdbGTFtagExonParentGene = None
         try:
+            sjdbGTFtagExonParentTranscript = star_options['sjdbGTFtagExonParentTranscript']
+        except:
+            self.sjdbGTFtagExonParentTranscript = None
+        try:
             self.quantMode = star_options['quantMode']
         except:
             self.quantMode = None
