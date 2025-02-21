@@ -41,7 +41,7 @@ class STARSalmonArgs:
         except:
             self.sjdbGTFtagExonParentGene = None
         try:
-            sjdbGTFtagExonParentTranscript = star_options['sjdbGTFtagExonParentTranscript']
+            self.sjdbGTFtagExonParentTranscript = star_options['sjdbGTFtagExonParentTranscript']
         except:
             self.sjdbGTFtagExonParentTranscript = None
         try:
