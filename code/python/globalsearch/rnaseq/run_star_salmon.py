@@ -57,6 +57,12 @@ class STARSalmonArgs:
         except:
             self.sjdbOverhang = None
 
+        try:
+            self.tmp = star_options['tmp']
+        except:
+            self.tmp = "/tmp"
+
+
         dedup_prefix = '_dedup' if config['deduplicate_bam_files'] else ''
         self.starPrefix = 'star_%s_%s_%s_%s%s' % (star_options['outFilterMismatchNmax'],
                                                   star_options['outFilterMismatchNoverLmax'],
@@ -128,6 +134,8 @@ def run_star(first_pair_group, second_pair_group, results_dir, folder_name,
         command += ["--sjdbGTFtagExonParentGene", args.sjdbGTFtagExonParentGene]
     if args.quantMode is not None:
         command += ["--quantMode"] + args.quantMode
+    if args.tmp is not None:
+        command += ["--outTmpDir"] + args.tmp
 
     cmd = ' '.join(command)
     compl_proc = subprocess.run(command, check=True, capture_output=False, cwd=results_dir)
@@ -367,6 +375,7 @@ if __name__ == '__main__':
     parser.add_argument('--quantMode', nargs="+")
     parser.add_argument('--salmon_genome_fasta')
     parser.add_argument('--config', help="config file, override everything")
+    parser.add_argument("--tmp", default="/tmp")
 
     args = parser.parse_args()
 
