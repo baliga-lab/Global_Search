@@ -134,8 +134,8 @@ def run_star(first_pair_group, second_pair_group, results_dir, folder_name,
         command += ["--sjdbGTFtagExonParentGene", args.sjdbGTFtagExonParentGene]
     if args.quantMode is not None:
         command += ["--quantMode"] + args.quantMode
-    if args.tmp is not None:
-        command += ["--outTmpDir", args.tmp]
+    #if args.tmp is not None:
+    #    command += ["--outTmpDir", args.tmp]
 
     cmd = ' '.join(command)
     compl_proc = subprocess.run(command, check=True, capture_output=False, cwd=results_dir)
