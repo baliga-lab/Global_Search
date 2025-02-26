@@ -6,7 +6,9 @@ RNASeq Analysis pipeline using Kallisto
 import glob, sys, os, re, subprocess
 from .find_files import find_fastq_files
 from .trim_galore import trim_galore, collect_trimmed_data, create_result_dirs
+from globalsearch.rnaseq.find_files import rnaseq_data_folder_list
 import argparse
+import json
 
 # data and results directories
 # These were the original examples
@@ -59,7 +61,10 @@ def run_pipeline(data_folder, results_folder, genome_dir, transcriptome_file, ar
     # Get the list of first file names in paired end sequences
     #first_pair_files = glob.glob('%s/*_1.fq*' %(data_folder))
     #print(first_pair_files)
+    patterns = args.fastq_patterns.split(',')
     pair_files = find_fastq_files(data_folder, args.fastq_patterns.split(','))
+    print("PATTERNS: ", patterns)
+    print("PAIR FILES: ", pair_files)
 
     # Program specific results directories
     organism = os.path.basename(genome_dir)
@@ -72,7 +77,7 @@ def run_pipeline(data_folder, results_folder, genome_dir, transcriptome_file, ar
     create_result_dirs(data_trimmed_dir,fastqc_dir,results_dir, htseq_dir)
     print("PAIR_FILES: ", pair_files, flush=True)
 
-    index_path = os.path.join(results_folder, "%s_kallistoindex" % organism)
+    index_path = os.path.join(genome_dir, "%s_kallistoindex" % organism)
     kallisto_index(index_path, transcriptome_file)
 
     # Loop through each file and create filenames
@@ -129,6 +134,21 @@ def run_pipeline(data_folder, results_folder, genome_dir, transcriptome_file, ar
     return data_trimmed_dir,fastqc_dir,results_dir
 
 
+class KallistoArgs:
+    def __init__(self, config):
+        self.fastq_patterns = ','.join(config['fastq_patterns'])
+
+def run_config(config):
+    args = KallistoArgs(config)
+    includes = rnaseq_data_folder_list(config)
+    for folder in includes:
+        data_folder = os.path.join(config["input_dir"], folder)
+        results_folder = os.path.join(config["output_dir"], folder)
+        genome_dir = config["genome_dir"]
+        transcriptome_file = config['genome_fasta']
+        run_pipeline(data_folder, results_folder, genome_dir, transcriptome_file,
+                     args)
+
 DESCRIPTION = """run_kallisto.py - run Kallisto pipeline"""
 
 if __name__ == '__main__':
@@ -140,9 +160,16 @@ if __name__ == '__main__':
     parser.add_argument('transcriptome_file', help="path to transcriptome_file")
     parser.add_argument('outdir', help='output directory')
     parser.add_argument('--fastq_patterns', help="FASTQ file patterns", default="*_{{pairnum}}.fq.*")
+    # if config is set, this will replace everything
+    parser.add_argument('--config', help="config file")
     args = parser.parse_args()
 
-    print("Processing directory %s" % args.indir)
-    data_folder = os.path.join(args.dataroot, args.indir)
-    data_trimmed_dir, fastqc_dir, results_dir = run_pipeline(data_folder, args.outdir, args.genomedir,
-                                                             args.transcriptome_file, args)
+    if not args.config is None:
+        with open(args.config) as infile:
+            config = json.load(infile)
+            run_config(config)
+    else:
+        print("Processing directory %s" % args.indir)
+        data_folder = os.path.join(args.dataroot, args.indir)
+        data_trimmed_dir, fastqc_dir, results_dir = run_pipeline(data_folder, args.outdir, args.genomedir,
+                                                                 args.transcriptome_file, args)

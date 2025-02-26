@@ -22,6 +22,7 @@ if [ $? == 0 ] ; then
 
     elif [ $algo == 'kallisto' ]; then
 	    echo "Running Kallisto workflow"
+        python3 -m globalsearch.rnaseq.run_kallisto --config $1 dummy dummmy dummy dummy dummy
     else
 	    echo "UNSUPPORTED ALGORITHM: $algo"
 	exit 1
