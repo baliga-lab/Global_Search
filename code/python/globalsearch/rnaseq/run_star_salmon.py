@@ -169,7 +169,7 @@ def run_samtools_sort_and_index(results_dir):
 
 
 ####################### Deduplication (not in _old) ###############################
-def dedup(results_dir,folder_name):
+def dedup(results_dir, folder_name, args):
     print('\033[33mRunning Deduplication! \033[0m', flush=True)
     outfile_prefix = '%s/%s_%s_' %(results_dir, folder_name, args.starPrefix)
 
@@ -319,7 +319,7 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args):
     # Run Deduplication
     if args.dedup:
         print('\033[33mRunning Deduplication: \033[0m', flush=True)
-        dedup(results_dir,folder_name)
+        dedup(results_dir,folder_name, args)
 
     # Run Salmon Quant
     if args.salmon_genome_fasta is not None:
@@ -330,6 +330,13 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args):
 
     return data_trimmed_dir, fastqc_dir, results_dir
 
+
+def aws_s3_sync(result_dir, bucket_url):
+    parent_dir = os.path.dirname(result_dir)
+    compl_proc = subprocess.run("aws s3 sync %s %s" % (parent_dir, bucket_url),
+                                shell=True, check=True, capture_output=False)
+    compl_proc = subprocess.run("rm -rf result_dir" % result_dir,
+                                shell=True, check=True, capture_output=False)
 
 def run_config(configfile):
     """Run from config file"""
@@ -343,6 +350,17 @@ def run_config(configfile):
                      config['output_dir'],
                      config['genome_dir'], config['genome_fasta'],
                      starsalmon_args)
+        # post run action, currently always an S3 sync
+        try:
+            actions = config["nocluster_post_run"]
+            result_dir = os.path.join(config['output_dir'], data_folder)
+            for action in actions:
+                action_type = action["action_type"]
+                url = action["url"]
+                aws_s3_sync(result_dir, url)
+        except:
+            # ignore
+            pass
 
 
 if __name__ == '__main__':
