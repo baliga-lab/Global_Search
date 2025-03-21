@@ -344,7 +344,7 @@ def run_config(configfile):
         config = json.load(infile)
 
     starsalmon_args = STARSalmonArgs(config)
-    data_folders = rnaseq_data_folder_list(config)
+    data_folders = sorted(rnaseq_data_folder_list(config))
     for data_folder in data_folders:
         run_pipeline(os.path.join(config['input_dir'], data_folder),
                      config['output_dir'],
