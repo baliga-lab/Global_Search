@@ -335,7 +335,7 @@ def aws_s3_sync(result_dir, bucket_url):
     parent_dir = os.path.dirname(result_dir)
     compl_proc = subprocess.run("aws s3 sync %s %s" % (parent_dir, bucket_url),
                                 shell=True, check=True, capture_output=False)
-    compl_proc = subprocess.run("rm -rf result_dir" % result_dir,
+    compl_proc = subprocess.run("rm -rf %s" % result_dir,
                                 shell=True, check=True, capture_output=False)
 
 def run_config(configfile):
