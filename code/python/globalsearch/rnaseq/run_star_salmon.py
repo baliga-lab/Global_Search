@@ -5,7 +5,7 @@
 ##### Last update: 11/15/2022 Serdar Turkarslan         #####
 ##### Institute for Systems Biology                     #####
 ############################################################
-import glob, sys, os, string, datetime, re
+import glob, sys, os, string, datetime, re, shutil
 import argparse
 import subprocess
 import json
@@ -81,7 +81,7 @@ class STARSalmonArgs:
 ### https://github.com/BarshisLab/danslabnotebook/blob/main/CBASSAS_GenotypeScreening.md
 
 def run_star(first_pair_group, second_pair_group, results_dir, folder_name,
-             genome_dir, is_gzip, args):
+             genome_dir, is_gzip, args, config):
     print('\033[33mRunning STAR! \033[0m', flush=True)
     outfile_prefix = '%s/%s_%s_' % (results_dir, folder_name, args.starPrefix)
     star_options = ["--runThreadN", str(args.runThreadN),
@@ -217,8 +217,11 @@ def dedup(results_dir, folder_name, args):
 
 
 ####################### Run Salmon Count ###############################
-# WW: Check the names of the input files they will be different from _out
-def run_salmon_quant(results_dir, folder_name, genome_fasta, args):
+
+def get_final_bam_name(results_dir, folder_name, args):
+    """determine the name of the input BAM file that goes into salmon
+    This is to preserve it upon cleanup
+    """
     outfile_prefix = '%s/%s_%s_' %(results_dir, folder_name, args.starPrefix)
     print("OUTFILE PREFIX: ", outfile_prefix, flush=True)
     print('\033[33mRunning salmon-quant! \033[0m', flush=True)
@@ -232,9 +235,19 @@ def run_salmon_quant(results_dir, folder_name, genome_fasta, args):
         salmon_transcriptome_input = "%sAligned.toTranscriptome.out.bam" % outfile_prefix
         if os.path.exists(salmon_transcriptome_input):
             salmon_input = salmon_transcriptome_input
+    return salmon_input
 
+def get_salmon_result_dir(results_dir, args):
+    """create name of salmon result directory so we know where to cleanup"""
+    return '%s/%s_salmon_quant' % (results_dir, args.salmonPrefix)
+
+
+# WW: Check the names of the input files they will be different from _out
+def run_salmon_quant(results_dir, folder_name, genome_fasta, args):
+    salmon_input = get_final_bam_name(results_dir, folder_name, args)
     command = ['salmon', 'quant', '-t', genome_fasta,
-        '-l', 'A',  '-a',  salmon_input, '-o', '%s/%s_salmon_quant' % (results_dir, args.salmonPrefix)]
+               '-l', 'A',  '-a',  salmon_input,
+               '-o', get_salmon_result_dir(results_dir, args)]
     cmd = ' '.join(command)
     print("Salmon quant command: '%s'" % cmd, flush=True)
     # run as a joined string
@@ -252,9 +265,62 @@ def run_htseq(htseq_dir, results_dir, folder_name, genome_gff):
     os.system(cmd)
 
 
+##### Cleanup step
+
+def cleanup_after_run(cleanup_config, data_trimmed_dir, results_dir,
+                      folder_name, args):
+    """
+    if cleanup_config["intermediate_bam_files"]:
+        print("CLEANUP: deleting intermediary bam files")
+        final_bam = get_final_bam_name(results_dir, folder_name, args)
+        for f in os.listdir(results_dir):
+            if f.endswith(".bam") and f != final_bam:
+                print("DELETING '%s'" % f)
+                os.remove("%s/%s" % (results_dir, f))
+    if cleanup_config["trim_files"]:
+        print("CLEANUP: delete directory '%s'" % data_trimmed_dir)
+        shutil.rmtree(data_trimmed_dir)
+    if cleanup_config["salmon_log"]:
+        salmon_dir = get_salmon_result_dir(results_dir, args)
+        print("CLEANUP: delete salmon log directory: '%s/logs'" % salmon_dir)
+        shutil.rmtree(os.path.join(salmon_dir), "logs")
+    """
+    final_bam = get_final_bam_name(results_dir, folder_name,
+                                   args)
+    print("final_bam: ", final_bam)
+    if os.path.exists(final_bam):
+        print("FINAL_BAM EXISTS")
+        final_bam_name = os.path.basename(final_bam)
+        for f in os.listdir(results_dir):
+            if f.endswith(".bam") and f != final_bam_name:
+                #os.remove(os.path.join(results_dir, folder_name, f))
+                print("delete BAM file: '%s'" % f)
+    else:
+        print("FINAL_BAM DOES NOT EXIST")
+
+    print("trimmed_dir: ", data_trimmed_dir)
+    if os.path.exists(data_trimmed_dir):
+        print("TRIMMED_DIR EXISTS")
+    else:
+        print("TRIMMED_DIR DOES NOT EXIST")
+    salmon_dir = get_salmon_result_dir(results_dir, args)
+    if os.path.exists(salmon_dir):
+        print("SALMON_DIR EXISTS")
+        salmon_log_dir = os.path.join(salmon_dir, "logs")
+        if os.path.exists(salmon_log_dir):
+            #for f in glob(os.path.join(salmon_log_dir, "*.log")):
+            #    os.remove(f)
+            print("SALMON LOG DIR EXISTS !!! -> REMOVE")
+        else:
+            print("SALMON LOG DIR DOES NOT EXIST")
+    else:
+        print("SALMON_DIR DOES NOT EXIST")
+
+
 ####################### Running the Pipeline ###############################
 
-def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args):
+def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
+                 config):
     folder_count = 1
 
     # Loop through each data folder
@@ -327,6 +393,14 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args):
 
     run_salmon_quant(results_dir, folder_name, genome_fasta, args)
     folder_count += 1
+    try:
+        cleanup_config = config["cleanup_after_run"]
+        print("CLEANUP AFTER RUN...")
+        cleanup_after_run(cleanup_config, data_trimmed_dir, results_dir,
+                          folder_name, args)
+    except:
+        print("CLEANUP AFTER RUN - SKIPPED")
+        pass
 
     return data_trimmed_dir, fastqc_dir, results_dir
 
@@ -349,7 +423,7 @@ def run_config(configfile):
         run_pipeline(os.path.join(config['input_dir'], data_folder),
                      config['output_dir'],
                      config['genome_dir'], config['genome_fasta'],
-                     starsalmon_args)
+                     starsalmon_args, config)
         # post run action, currently always an S3 sync
         try:
             actions = config["nocluster_post_run"]
@@ -409,4 +483,4 @@ if __name__ == '__main__':
         else:
             genome_fasta = glob.glob('%s/*.fasta' % (args.genomedir))[0]
 
-        data_trimmed_dir,fastqc_dir,results_dir = run_pipeline(data_folder, args.outdir, args.genomedir, genome_fasta, args)
+        data_trimmed_dir,fastqc_dir,results_dir = run_pipeline(data_folder, args.outdir, args.genomedir, genome_fasta, args, {})
