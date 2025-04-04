@@ -16,11 +16,22 @@ from .trim_galore import trim_galore, collect_trimmed_data, create_result_dirs
 DESCRIPTION = """run_STAR_SALMON.py - run STAR and Salmon"""
 
 
+class HtseqArgs:
+    """Class that fakes a command line argument object"""
+    def __init__(self, config):
+        htseq_options = config['htseq_options']
+        self.htseqStranded = htseq_options['stranded']
+        self.htseqFeatureType = htseq_options['feature_type']
+        self.htseqID = htseq_options['id_attribute']
+        self.htseqOrder = htseq_options['order']
+
+
 class STARSalmonArgs:
     """Class that fakes a command line argument object"""
     def __init__(self, config):
         star_options = config['star_options']
         self.dedup = config['deduplicate_bam_files']
+        self.use_htseq = config["rnaseq_algorithm"] == "star_htseq"
         self.fastq_patterns = ','.join(config['fastq_patterns'])
         self.salmon_genome_fasta = config['genome_fasta']
         self.runThreadN = config['star_index_options']['runThreadN']
@@ -81,7 +92,7 @@ class STARSalmonArgs:
 ### https://github.com/BarshisLab/danslabnotebook/blob/main/CBASSAS_GenotypeScreening.md
 
 def run_star(first_pair_group, second_pair_group, results_dir, folder_name,
-             genome_dir, is_gzip, args, config):
+             genome_dir, is_gzip, args):
     print('\033[33mRunning STAR! \033[0m', flush=True)
     outfile_prefix = '%s/%s_%s_' % (results_dir, folder_name, args.starPrefix)
     star_options = ["--runThreadN", str(args.runThreadN),
@@ -219,12 +230,11 @@ def dedup(results_dir, folder_name, args):
 ####################### Run Salmon Count ###############################
 
 def get_final_bam_name(results_dir, folder_name, args):
-    """determine the name of the input BAM file that goes into salmon
+    """determine the name of the input BAM file that comes out of STAR
     This is to preserve it upon cleanup
     """
     outfile_prefix = '%s/%s_%s_' %(results_dir, folder_name, args.starPrefix)
     print("OUTFILE PREFIX: ", outfile_prefix, flush=True)
-    print('\033[33mRunning salmon-quant! \033[0m', flush=True)
     # check if we are performing deduplication
     if args.dedup:
         salmon_input = '%sNoSingletonCollated.out.bam' % (outfile_prefix)
@@ -243,10 +253,10 @@ def get_salmon_result_dir(results_dir, args):
 
 
 # WW: Check the names of the input files they will be different from _out
-def run_salmon_quant(results_dir, folder_name, genome_fasta, args):
-    salmon_input = get_final_bam_name(results_dir, folder_name, args)
+def run_salmon_quant(final_bam, results_dir, folder_name, genome_fasta, args):
+    print('\033[33mRunning salmon-quant! \033[0m', flush=True)
     command = ['salmon', 'quant', '-t', genome_fasta,
-               '-l', 'A',  '-a',  salmon_input,
+               '-l', 'A',  '-a', final_bam,
                '-o', get_salmon_result_dir(results_dir, args)]
     cmd = ' '.join(command)
     print("Salmon quant command: '%s'" % cmd, flush=True)
@@ -255,73 +265,97 @@ def run_salmon_quant(results_dir, folder_name, genome_fasta, args):
 
 
 ####################### Run HTSEq Count ###############################
-#### We can remove this since we are using salmon quant
-def run_htseq(htseq_dir, results_dir, folder_name, genome_gff):
-    print('\033[33mRunning htseq-count! \033[0m', flush=True)
-    htseq_input = '%s/%s_star_Aligned.sortedByCoord.out.bam' %(results_dir, folder_name)
-    cmd = 'htseq-count -s "reverse" -t "exon" -i "Parent" -r pos --max-reads-in-buffer 60000000 -f bam %s %s > %s/%s_htseqcounts.txt' %(htseq_input,
-                                                                                                                                        genome_gff,htseq_dir,folder_name)
-    print('htseq-count run command: %s' % cmd, flush=True)
-    os.system(cmd)
 
+def run_htseq_count(final_bam, htseq_resultdir,
+                    folder_name, genome_gff, args):
+    if not os.path.exists(htseq_resultdir):
+        os.makedirs(htseq_resultdir)
+    # sort and index the final_bam file for htseq, it is required
+    # 1. check if exists
+    htseq_inputfile = os.path.basename(final_bam).replace(".out.bam",
+                                                          ".sortedByCoord.out.bam")
+    htseq_inputpath = os.path.join(os.path.dirname(final_bam), htseq_inputfile)
+    if not os.path.exists(htseq_inputpath):
+        # SORT
+        cmd = ["samtools", "sort", final_bam,
+               "-o", htseq_inputpath]
+        command = " ".join(cmd)
+        print("Running '%s'" % command)
+        os.system(command)
+        index_file = htseq_inputfile.replace("bam", "bai")
+        index_path = os.path.join(os.path.dirname(final_bam), index_file)
+        if not os.path.exists(index_path):
+            cmd = ["samtools", "index", htseq_inputpath]
+            command = " ".join(cmd)
+            print("Running '%s'" % command)
+            os.system(command)
+
+    htseq_resultfile = os.path.join(htseq_resultdir,
+                                    "%s_htseqcounts.txt" % folder_name)
+    if not os.path.exists(htseq_resultfile):
+        cmd = ["htseq-count",
+               "-s", args.htseqStranded,
+               "-t", args.htseqFeatureType,
+               "-i", args.htseqID,
+               "-r", args.htseqOrder,
+               "--max-reads-in-buffer", "60000000",
+               "-f", "bam",
+               htseq_inputpath,
+               genome_gff,
+               ">",
+               htseq_resultfile]
+        command = " ".join(cmd)
+        print("Running '%s'" % command)
+        os.system(command)
+    else:
+        print("'%s' exists -> skipping" % htseq_resultfile)
 
 ##### Cleanup step
 
 def cleanup_after_run(cleanup_config, data_trimmed_dir, results_dir,
                       folder_name, args):
-    """
     if cleanup_config["intermediate_bam_files"]:
-        print("CLEANUP: deleting intermediary bam files")
-        final_bam = get_final_bam_name(results_dir, folder_name, args)
-        for f in os.listdir(results_dir):
-            if f.endswith(".bam") and f != final_bam:
-                print("DELETING '%s'" % f)
-                os.remove("%s/%s" % (results_dir, f))
+        final_bam = get_final_bam_name(results_dir, folder_name,
+                                       args)
+        print("final_bam: ", final_bam)
+        if os.path.exists(final_bam):
+            print("FINAL_BAM EXISTS")
+            final_bam_name = os.path.basename(final_bam)
+            #for f in os.listdir(results_dir):
+            #    if f.endswith(".bam") and f != final_bam_name:
+            #        print("delete BAM file: '%s'" % f)
+            #        os.remove(os.path.join(results_dir, folder_name, f))
+        else:
+            print("FINAL_BAM DOES NOT EXIST")
+
     if cleanup_config["trim_files"]:
-        print("CLEANUP: delete directory '%s'" % data_trimmed_dir)
-        shutil.rmtree(data_trimmed_dir)
+        print("trimmed_dir: ", data_trimmed_dir)
+        if os.path.exists(data_trimmed_dir):
+            print("TRIMMED_DIR EXISTS")
+            #shutil.rmtree(data_trimmed_dir)
+        else:
+            print("TRIMMED_DIR DOES NOT EXIST")
+
     if cleanup_config["salmon_log"]:
         salmon_dir = get_salmon_result_dir(results_dir, args)
-        print("CLEANUP: delete salmon log directory: '%s/logs'" % salmon_dir)
-        shutil.rmtree(os.path.join(salmon_dir), "logs")
-    """
-    final_bam = get_final_bam_name(results_dir, folder_name,
-                                   args)
-    print("final_bam: ", final_bam)
-    if os.path.exists(final_bam):
-        print("FINAL_BAM EXISTS")
-        final_bam_name = os.path.basename(final_bam)
-        for f in os.listdir(results_dir):
-            if f.endswith(".bam") and f != final_bam_name:
-                #os.remove(os.path.join(results_dir, folder_name, f))
-                print("delete BAM file: '%s'" % f)
-    else:
-        print("FINAL_BAM DOES NOT EXIST")
-
-    print("trimmed_dir: ", data_trimmed_dir)
-    if os.path.exists(data_trimmed_dir):
-        print("TRIMMED_DIR EXISTS")
-    else:
-        print("TRIMMED_DIR DOES NOT EXIST")
-    salmon_dir = get_salmon_result_dir(results_dir, args)
-    if os.path.exists(salmon_dir):
-        print("SALMON_DIR EXISTS")
-        salmon_log_dir = os.path.join(salmon_dir, "logs")
-        if os.path.exists(salmon_log_dir):
-            #for f in glob(os.path.join(salmon_log_dir, "*.log")):
-            #    os.remove(f)
-            print("SALMON LOG DIR EXISTS !!! -> REMOVE")
+        if os.path.exists(salmon_dir):
+            print("SALMON_DIR EXISTS")
+            salmon_log_dir = os.path.join(salmon_dir, "logs")
+            if os.path.exists(salmon_log_dir):
+                #for f in glob(os.path.join(salmon_log_dir, "*.log")):
+                #    os.remove(f)
+                print("SALMON LOG DIR EXISTS !!! -> REMOVE")
+                #shutil.rmtree(salmon_log_dir)
+            else:
+                print("SALMON LOG DIR DOES NOT EXIST")
         else:
-            print("SALMON LOG DIR DOES NOT EXIST")
-    else:
-        print("SALMON_DIR DOES NOT EXIST")
+            print("SALMON_DIR DOES NOT EXIST")
 
 
 ####################### Running the Pipeline ###############################
 
 def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
                  config):
-    folder_count = 1
 
     # Loop through each data folder
     folder_name = data_folder.split('/')[-1]
@@ -336,7 +370,7 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
     fastqc_dir = "%s/%s/fastqc_results" % (results_folder,folder_name)
 
     results_dir = "%s/%s/results_STAR_Salmon" %(results_folder, folder_name)
-    htseq_dir = "%s/htseqcounts" % (results_dir)
+    htseq_dir = "%s/htseq_counts" % (results_dir)
 
     # Run create directories function to create directory structure
     create_result_dirs(data_trimmed_dir, fastqc_dir, results_dir, htseq_dir)
@@ -387,12 +421,19 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
         print('\033[33mRunning Deduplication: \033[0m', flush=True)
         dedup(results_dir,folder_name, args)
 
-    # Run Salmon Quant
-    if args.salmon_genome_fasta is not None:
-        genome_fasta = args.salmon_genome_fasta
+    final_bam = get_final_bam_name(results_dir, folder_name, args)
 
-    run_salmon_quant(results_dir, folder_name, genome_fasta, args)
-    folder_count += 1
+    if args.use_htseq:
+        htseq_args = HtseqArgs(config)
+        run_htseq_count(final_bam, htseq_dir, folder_name, args.genome_gff,
+                        htseq_args)
+    else:
+        # Run Salmon Quant
+        if args.salmon_genome_fasta is not None:
+            genome_fasta = args.salmon_genome_fasta
+
+        run_salmon_quant(final_bam, results_dir, folder_name, genome_fasta, args)
+
     try:
         cleanup_config = config["cleanup_after_run"]
         print("CLEANUP AFTER RUN...")
@@ -422,8 +463,10 @@ def run_config(configfile):
     for data_folder in data_folders:
         run_pipeline(os.path.join(config['input_dir'], data_folder),
                      config['output_dir'],
-                     config['genome_dir'], config['genome_fasta'],
-                     starsalmon_args, config)
+                     config['genome_dir'],
+                     config['genome_fasta'],
+                     starsalmon_args,
+                     config)
         # post run action, currently always an S3 sync
         try:
             actions = config["nocluster_post_run"]
@@ -444,6 +487,7 @@ if __name__ == '__main__':
     parser.add_argument('dataroot', help="parent of input directory")
     parser.add_argument('indir', help="input directory (R<somenumber>)")
     parser.add_argument('outdir', help='output directory')
+    parser.add_argument("--use_htseq", help="htseq instead of salmon", action="store_true")
     parser.add_argument('--fastq_patterns', help="FASTQ file patterns", default="*_{{pairnum}}.fq.*")
     parser.add_argument('--genome_gff', help='genome GFF file')
     parser.add_argument('--genome_fasta', help='genome FASTA file')
@@ -469,6 +513,12 @@ if __name__ == '__main__':
     parser.add_argument('--config', help="config file, override everything")
     parser.add_argument("--tmp", default="/tmp")
 
+    # htseq options
+    parser.add_argument("--htseqStranded", default='no')
+    parser.add_argument("--htseqFeatureType", default="exon")
+    parser.add_argument("--htseqID", default="Parent")
+    parser.add_argument("--htseqOrder", default="pos")
+
     args = parser.parse_args()
 
     now = datetime.datetime.now()
@@ -483,4 +533,19 @@ if __name__ == '__main__':
         else:
             genome_fasta = glob.glob('%s/*.fasta' % (args.genomedir))[0]
 
-        data_trimmed_dir,fastqc_dir,results_dir = run_pipeline(data_folder, args.outdir, args.genomedir, genome_fasta, args, {})
+        # make htseq config from comman line args
+        config = {
+            "htseq_options": {
+                "stranded": args.htseqStranded,
+                "feature_type": args.htseqFeatureType,
+                "id_attribute": args.htseqID,
+                "order": args.htseqOrder
+            },
+            # added cleanup config
+            "cleanup_after_run": {
+                "intermediate_bam_files": True,
+                "trim_files": True,
+                "salmon_log": True
+            }
+        }
+        data_trimmed_dir,fastqc_dir,results_dir = run_pipeline(data_folder, args.outdir, args.genomedir, genome_fasta, args, config)

@@ -71,7 +71,7 @@ def run_pipeline(data_folder, results_folder, genome_dir, transcriptome_file, ar
     data_trimmed_dir = os.path.join(results_folder, folder_name, "trimmed")
     fastqc_dir = os.path.join(results_folder, folder_name, "fastqc_results")
     results_dir = os.path.join(results_folder, folder_name, organism)
-    htseq_dir = os.path.join(results_folder, "htseqcounts")
+    htseq_dir = os.path.join(results_folder, "htseq_counts")
 
     # Run create directories function to create directory structure
     create_result_dirs(data_trimmed_dir,fastqc_dir,results_dir, htseq_dir)

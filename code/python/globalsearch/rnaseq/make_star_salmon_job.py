@@ -24,7 +24,7 @@ salmon_prefix="salmon_{{star_options.outFilterMismatchNmax}}_{{star_options.outF
 
 {{sbatch_extras}}
 
-python3 -m globalsearch.rnaseq.run_star_salmon {{star_extra_options}} {{salmon_extra_options}} {{twopass_mode}} {{fastq_patterns}} {{runThreadN}} {{out_sam_attributes}} --outFilterMismatchNmax {{star_options.outFilterMismatchNmax}} --outFilterMismatchNoverLmax {{star_options.outFilterMismatchNoverLmax}} --outFilterScoreMinOverLread {{star_options.outFilterScoreMinOverLread}} --outFilterMatchNmin {{star_options.outFilterMatchNmin}} {{dedup_option}} --starPrefix $star_prefix --salmonPrefix $salmon_prefix {{genome_gff_option}} {{genome_fasta_option}} {{genome_dir}} {{input_dir}} $data_folder {{output_dir}}
+python3 -m globalsearch.rnaseq.run_star_salmon {{star_extra_options}} {{salmon_extra_options}} {{twopass_mode}} {{fastq_patterns}} {{runThreadN}} {{out_sam_attributes}} --outFilterMismatchNmax {{star_options.outFilterMismatchNmax}} --outFilterMismatchNoverLmax {{star_options.outFilterMismatchNoverLmax}} --outFilterScoreMinOverLread {{star_options.outFilterScoreMinOverLread}} --outFilterMatchNmin {{star_options.outFilterMatchNmin}} {{dedup_option}} {{use_htseq}} {{htseq_options}} --starPrefix $star_prefix --salmonPrefix $salmon_prefix {{genome_gff_option}} {{genome_fasta_option}} {{genome_dir}} {{input_dir}} $data_folder {{output_dir}}
 """
 
 DESCRIPTION = """make_star_salmon_job.py - Create STAR Salmon job file for Slurm"""
@@ -59,6 +59,16 @@ if __name__ == '__main__':
     config['dedup_option'] = '--dedup' if config['deduplicate_bam_files'] else ''
     config['dedup_option'] = '--dedup' if config['deduplicate_bam_files'] else ''
     config['twopass_mode'] = '--twopassMode' if config['star_options']['twopassMode'] else ''
+    config['use_htseq'] = '--use_htseq' if config["rnaseq_algorithm"] == 'star_htseq' else ''
+    if config['use_htseq']:
+        hts_ops = []
+        hts_ops.append("--htseqStranded %s" % config['htseq_options']["stranded"])
+        hts_ops.append("--htseqFeatureType %s" % config['htseq_options']["feature_type"])
+        hts_ops.append("--htseqID %s" % config['htseq_options']["id_attribute"])
+        hts_ops.append("--htseqOrder %s" % config['htseq_options']["order"])
+        config['htseq_options'] = ' '.join(hts_ops)
+    else:
+        htseq_options = ""
 
     # override runThreadN
     try:
