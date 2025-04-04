@@ -193,7 +193,7 @@ def dedup(results_dir, folder_name, args):
     nosingletonCollated_bam = '%sNoSingletonCollated.out.bam' % (outfile_prefix)
 
     # STAR mark duplicates
-    star_markdup_command = ['STAR', '--runThreadN', '32',
+    star_markdup_command = ['STAR', '--runThreadN', str(args.runThreadN),
                             '--runMode',
                             'inputAlignmentsFromBAM',
                             '--bamRemoveDuplicatesType', 'UniqueIdenticalNotMulti',
@@ -201,7 +201,7 @@ def dedup(results_dir, folder_name, args):
                             '--outFileNamePrefix', outfile_prefix]
     star_markdup_cmd = ' '.join(star_markdup_command)
 
-    # removesingletons from STAR
+    # remove duplicates marked by STAR with 0x400
     rmsingletonsSTAR_command = ['samtools', 'view', '-@', '8',
                                 '-b', '-F', '0x400', markdupSTAR_bam,
                                 '>', nosingleton_bam]
