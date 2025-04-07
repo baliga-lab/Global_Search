@@ -11,7 +11,7 @@ SINGLE_END_FQ_PATTERN = '/*_trimmed.fq'
 trim_galore --fastqc_args "--outdir /proj/omics4tb2/wwu/Global_Search/redsea-output/R1/fastqc_results/" --paired --output_dir /proj/omics4tb2/wwu/Global_Search/redsea-output/R1/trimmed/ /proj/omics4tb2/wwu/GlobalSearch.old/Pilot_Fail_Concat/rawdata/R1/R1_concat_1.fq.gz /proj/omics4tb2/wwu/GlobalSearch.old/Pilot_Fail_Concat/rawdata/R1/R1_concat_2.fq.gz"""
 
 def trim_galore(first_pair_file, second_pair_file, folder_name, sample_id, data_trimmed_dir,
-                fastqc_dir):
+                fastqc_dir, num_cores=1):
     paired = second_pair_file is not None  # make sure we are not single end
 
     # check whether the result already exists and skip if it does
@@ -36,6 +36,9 @@ def trim_galore(first_pair_file, second_pair_file, folder_name, sample_id, data_
 
     # run Command
     command = ['trim_galore', '--fastqc_args', '"--outdir %s/"' % fastqc_dir]
+    if num_cores > 1:
+        command += ['--j', '%d' % num_cores]
+
     if paired:
         command.append('--paired')
     command += ['--output_dir', data_trimmed_dir, first_pair_file]

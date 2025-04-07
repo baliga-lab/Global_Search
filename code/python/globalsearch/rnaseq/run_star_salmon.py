@@ -349,7 +349,11 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
         print("sample_id: %s" % sample_id, flush=True)
 
         # Run TrimGalore
-        trim_galore(first_pair_file, second_pair_file, folder_name,sample_id, data_trimmed_dir, fastqc_dir)
+        try:
+            trim_galore_num_cores = config["trim_galore"]["num_cores"]
+        except:
+            trim_galore_num_cores = 1
+        trim_galore(first_pair_file, second_pair_file, folder_name,sample_id, data_trimmed_dir, fastqc_dir, trim_galore_num_cores)
         file_count += 1
 
     # Collect Trimmed data for input into STAR
@@ -398,100 +402,51 @@ def aws_s3_sync(result_dir, bucket_url):
     compl_proc = subprocess.run("rm -rf %s" % result_dir,
                                 shell=True, check=True, capture_output=False)
 
-def run_config(configfile):
-    """Run from config file"""
-    with open(configfile) as infile:
-        config = json.load(infile)
 
+def run_config_single(config, data_folder):
     starsalmon_args = STARSalmonArgs(config)
+    run_pipeline(os.path.join(config['input_dir'], data_folder),
+                 config['output_dir'],
+                 config['genome_dir'],
+                 config['genome_fasta'],
+                 starsalmon_args,
+                 config)
+    # post run action, currently always an S3 sync
+    try:
+        actions = config["nocluster_post_run"]
+        result_dir = os.path.join(config['output_dir'], data_folder)
+        for action in actions:
+            action_type = action["action_type"]
+            url = action["url"]
+            aws_s3_sync(result_dir, url)
+    except:
+        # ignore
+        pass
+
+def run_config(config):
+    """Run from config only"""
     data_folders = sorted(rnaseq_data_folder_list(config))
     for data_folder in data_folders:
-        run_pipeline(os.path.join(config['input_dir'], data_folder),
-                     config['output_dir'],
-                     config['genome_dir'],
-                     config['genome_fasta'],
-                     starsalmon_args,
-                     config)
-        # post run action, currently always an S3 sync
-        try:
-            actions = config["nocluster_post_run"]
-            result_dir = os.path.join(config['output_dir'], data_folder)
-            for action in actions:
-                action_type = action["action_type"]
-                url = action["url"]
-                aws_s3_sync(result_dir, url)
-        except:
-            # ignore
-            pass
+        run_config_single(config, data_folder)
 
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(formatter_class=argparse.RawDescriptionHelpFormatter,
                                      description=DESCRIPTION)
-    parser.add_argument('genomedir', help='genome directory')
-    parser.add_argument('dataroot', help="parent of input directory")
-    parser.add_argument('indir', help="input directory (R<somenumber>)")
-    parser.add_argument('outdir', help='output directory')
-    parser.add_argument("--use_htseq", help="htseq instead of salmon", action="store_true")
-    parser.add_argument('--fastq_patterns', help="FASTQ file patterns", default="*_{{pairnum}}.fq.*")
-    parser.add_argument('--genome_gff', help='genome GFF file')
-    parser.add_argument('--genome_fasta', help='genome FASTA file')
-    parser.add_argument('--dedup', action='store_true', help='should we deduplicate bam files (True or False)')
-    parser.add_argument('--twopassMode', action='store_true', help='run STAR in two-pass mode')
-    parser.add_argument('--starPrefix', help="STAR output file name prefix")
-    parser.add_argument('--salmonPrefix', help="Salmon output folder name prefix")
-    parser.add_argument('--outFilterMismatchNmax', nargs='?', const=10, type=int)
-    parser.add_argument('--outFilterMismatchNoverLmax', nargs='?', const=0.3, type=float)
-    parser.add_argument('--outFilterScoreMinOverLread', nargs='?', const=0.66, type=float)
-    parser.add_argument('--outFilterMatchNmin', nargs='?', const=0, type=int)
-    parser.add_argument('--outSAMattributes', nargs='?', type=str, default="Standard")
-    parser.add_argument('--runThreadN', type=int, default=32)
-    parser.add_argument('--limitBAMsortRAM', type=int, default=5784458574)
-    parser.add_argument('--sjdbGTFtagExonParentTranscript', default="Parent")
-    parser.add_argument('--sjdbOverhang', type=int, default=None)
-    parser.add_argument('--limitSjdbInsertNsj', type=int, default=1602710)
-
-    parser.add_argument('--sjdbGTFfeatureExon')
-    parser.add_argument('--sjdbGTFtagExonParentGene')
-    parser.add_argument('--quantMode', nargs="+")
-    parser.add_argument('--salmon_genome_fasta')
-    parser.add_argument('--config', help="config file, override everything")
-    parser.add_argument("--tmp", default="/tmp")
-
-    # htseq options
-    parser.add_argument("--htseqStranded", default='no')
-    parser.add_argument("--htseqFeatureType", default="exon")
-    parser.add_argument("--htseqID", default="Parent")
-    parser.add_argument("--htseqOrder", default="pos")
+    parser.add_argument('config_file', help='configuration file')
+    parser.add_argument('data_folder', help='data folder within result dir')
+    parser.add_argument('--config_only', help='ignore data_folder',
+                        action="store_true")
 
     args = parser.parse_args()
 
     now = datetime.datetime.now()
     timeprint = now.strftime("%Y-%m-%d %H:%M")
 
-    if args.config is not None:
-        run_config(args.config)
-    else:
-        data_folder = "%s/%s" % (args.dataroot, args.indir)
-        if args.genome_fasta is not None and os.path.exists(args.genome_fasta):
-            genome_fasta = args.genome_fasta
-        else:
-            genome_fasta = glob.glob('%s/*.fasta' % (args.genomedir))[0]
+    with open(args.config_file) as infile:
+        config = json.load(infile)
 
-        # make htseq config from comman line args
-        # this is very hacky, so move this over to a separate module
-        config = {
-            "htseq_options": {
-                "stranded": args.htseqStranded,
-                "feature_type": args.htseqFeatureType,
-                "id_attribute": args.htseqID,
-                "order": args.htseqOrder
-            },
-            # added cleanup config
-            "cleanup_after_run": {
-                "intermediate_bam_files": True,
-                "trim_files": True,
-                "salmon_log": True
-            }
-        }
-        data_trimmed_dir,fastqc_dir,results_dir = run_pipeline(data_folder, args.outdir, args.genomedir, genome_fasta, args, config)
+        if args.config_only:
+            run_config(config)
+        else:
+            run_config_single(config, args.data_folder)
