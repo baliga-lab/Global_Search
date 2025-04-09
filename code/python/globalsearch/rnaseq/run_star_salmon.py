@@ -85,8 +85,13 @@ class STARSalmonArgs:
 
 def run_star(first_pair_group, second_pair_group, results_dir, folder_name,
              genome_dir, is_gzip, args):
+    """RUN STAR alignment"""
     print('\033[33mRunning STAR! \033[0m', flush=True)
-    outfile_prefix = '%s/%s_%s_' % (results_dir, folder_name, args.starPrefix)
+    outfile_prefix = get_outfile_prefix(results_dir, folder_name, args.starPrefix)
+    if quickcheck_bam(aligned_bam_filename(outfile_prefix)):
+        print("Aligned BAM file already exists, skipping STAR alignment")
+        return
+
     star_options = ["--runThreadN", str(args.runThreadN),
                     "--outFilterType", "Normal",
                     "--outSAMstrandField", "intronMotif",
@@ -137,49 +142,58 @@ def run_star(first_pair_group, second_pair_group, results_dir, folder_name,
         command += ["--sjdbGTFtagExonParentGene", args.sjdbGTFtagExonParentGene]
     if args.quantMode is not None:
         command += ["--quantMode"] + args.quantMode
-    #if args.tmp is not None:
-    #    command += ["--outTmpDir", args.tmp]
+
 
     cmd = ' '.join(command)
     compl_proc = subprocess.run(command, check=True, capture_output=False, cwd=results_dir)
 
 ####################### Samtools sorting and indexing ##########
 #
-def run_samtools_sort_and_index(results_dir):
-    bam_files = glob.glob(os.path.join(results_dir, "*.bam"))
-    if len(bam_files) == 0:
-        print("ERROR: could not sort and index - bam file not found")
-        return
-    sorted_bam_path = None
-    for f in bam_files:
-        if f.endswith("Sorted.out.bam"):
-            sorted_bam_path = f
-
-    filename = os.path.basename(bam_files[0])
-    if sorted_bam_path is None:
+def run_samtools_sort_and_index(results_dir, bam_file_path):
+    if not os.path.exists(bam_file_path):
+        raise Exception("ERROR: could not sort and index - bam file not found")
+    stem = bam_file_path.replace(".bam", "").replace(".out", "")
+    sorted_bam_path = os.path.join(results_dir, "%s_Sorted.out.bam" % stem)
+    if not os.path.exists(sorted_bam_path):
         print("Using samtools to sort STAR BAM result")
-        stem = bam_files[0].replace(".bam", "").replace(".out", "")
-        sorted_bam_path = os.path.join(results_dir, "%s_Sorted.out.bam" % stem)
-        command = ['samtools', 'sort', bam_files[0], '-o',
-                   sorted_bam_path]
+        command = ['samtools', 'sort', bam_file_path, '-o', sorted_bam_path]
         compl_proc = subprocess.run(command, check=True,
                                     capture_output=False, cwd=results_dir)
+    else:
+        print("%s already exists, skipping samtools sort" % sorted_bam_path)
+
     if not os.path.exists(sorted_bam_path + ".bai"):
         print("Using samtools to index sorted STAR BAM result")
         command = ["samtools", "index", sorted_bam_path]
         compl_proc = subprocess.run(command, check=True,
                                     capture_output=False, cwd=results_dir)
+    else:
+        print("%s already exists, skipping samtools index" % sorted_bam_path + ".bai")
 
 
 ####################### Deduplication (not in _old) ###############################
-def dedup(results_dir, folder_name, args):
+
+def aligned_bam_filename(outfile_prefix):
+    """
+    Get the aligned bam filename
+    """
+    return '%sAligned.out.bam' % (outfile_prefix)
+
+def get_outfile_prefix(results_dir, folder_name, star_prefix):
+    """
+    Get the outfile prefix
+    """
+    return '%s/%s_%s_' % (results_dir, folder_name, star_prefix)
+
+
+def star_dedup(results_dir, folder_name, args):
     print('\033[33mRunning Deduplication! \033[0m', flush=True)
-    outfile_prefix = '%s/%s_%s_' %(results_dir, folder_name, args.starPrefix)
+    outfile_prefix = get_outfile_prefix(results_dir, folder_name, args.starPrefix)
 
     aligned_bam = '%sAligned.out.bam' % (outfile_prefix)
-    fixmate_bam = '%sFixmate.out.bam' % (outfile_prefix)
-    ordered_bam = '%sOrdered.out.bam' % (outfile_prefix)
-    markdup_bam = '%sMarkedDup.out.bam' % (outfile_prefix)
+    #fixmate_bam = '%sFixmate.out.bam' % (outfile_prefix)
+    #ordered_bam = '%sOrdered.out.bam' % (outfile_prefix)
+    #markdup_bam = '%sMarkedDup.out.bam' % (outfile_prefix)
     markdupSTAR_bam = '%sProcessed.out.bam' % (outfile_prefix)
     nosingleton_bam = '%sNoSingleton.out.bam' % (outfile_prefix)
     nosingletonCollated_bam = '%sNoSingletonCollated.out.bam' % (outfile_prefix)
@@ -207,16 +221,25 @@ def dedup(results_dir, folder_name, args):
 
     ## STAR based BAM duplicate removal
     # Mark duplicates with STAR
-    print('STAR mark duplicates run command:%s' % star_markdup_cmd, flush=True)
-    compl_proc = subprocess.run(star_markdup_command, check=True, capture_output=False, cwd=results_dir)
+    if not os.path.exists(markdupSTAR_bam) or not quickcheck_bam(markdupSTAR_bam):
+        print('STAR mark duplicates run command:%s' % star_markdup_cmd, flush=True)
+        compl_proc = subprocess.run(star_markdup_command, check=True, capture_output=False, cwd=results_dir)
+    else:
+        print("%s already exists, skipping STAR mark duplicates" % markdupSTAR_bam)
 
     # Remove marked duplicates withh samtools
-    print('Samtools  STAR Dedup Remove run command:%s' % rmsingletonsSTAR_cmd, flush=True)
-    compl_proc = subprocess.run(rmsingletonsSTAR_cmd, shell=True, check=True, capture_output=False, cwd=results_dir)
+    if not os.path.exists(nosingleton_bam) or not quickcheck_bam(nosingleton_bam):
+        print('Samtools  STAR Dedup Remove run command:%s' % rmsingletonsSTAR_cmd, flush=True)
+        compl_proc = subprocess.run(rmsingletonsSTAR_cmd, shell=True, check=True, capture_output=False, cwd=results_dir)
+    else:
+        print("%s already exists, skipping Samtools  STAR Dedup Remove" % nosingleton_bam)
 
     # Remove marked duplicates withh samtools
-    print('Samtools  Collate reads by read name run command:%s' % collatereadsSTAR_cmd, flush=True)
-    compl_proc = subprocess.run(collatereadsSTAR_cmd, shell=True, check=True, capture_output=False, cwd=results_dir)
+    if not os.path.exists(nosingletonCollated_bam) or not quickcheck_bam(nosingletonCollated_bam):
+        print('Samtools  Collate reads by read name run command:%s' % collatereadsSTAR_cmd, flush=True)
+        compl_proc = subprocess.run(collatereadsSTAR_cmd, shell=True, check=True, capture_output=False, cwd=results_dir)
+    else:
+        print("%s already exists, skipping Samtools  Collate reads by read name" % nosingletonCollated_bam)
 
 
 ####################### Run Salmon Count ###############################
@@ -225,13 +248,13 @@ def get_final_bam_name(results_dir, folder_name, args):
     """determine the name of the input BAM file that comes out of STAR
     This is to preserve it upon cleanup
     """
-    outfile_prefix = '%s/%s_%s_' %(results_dir, folder_name, args.starPrefix)
+    outfile_prefix = get_outfile_prefix(results_dir, folder_name, args.starPrefix)
     print("OUTFILE PREFIX: ", outfile_prefix, flush=True)
     # check if we are performing deduplication
     if args.dedup:
         salmon_input = '%sNoSingletonCollated.out.bam' % (outfile_prefix)
     else:
-        salmon_input = '%sAligned.out.bam' % (outfile_prefix)
+        salmon_input = aligned_bam_filename(outfile_prefix)
 
         # Use BAM file aligned to transcriptome for salmon input if it exists
         salmon_transcriptome_input = "%sAligned.toTranscriptome.out.bam" % outfile_prefix
@@ -350,7 +373,7 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
 
         # Run TrimGalore
         try:
-            trim_galore_num_cores = config["trim_galore"]["num_cores"]
+            trim_galore_num_cores = config["trim_galore_options"]["num_cores"]
         except:
             trim_galore_num_cores = 1
         trim_galore(first_pair_file, second_pair_file, folder_name,sample_id, data_trimmed_dir, fastqc_dir, trim_galore_num_cores)
@@ -363,12 +386,13 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
     run_star(first_pair_group, second_pair_group, results_dir, folder_name, genome_dir, is_gzip, args)
 
     # Run samtools, sorting and indexing
-    run_samtools_sort_and_index(results_dir)
+    outfile_prefix = get_outfile_prefix(results_dir, folder_name, args.starPrefix)
+    run_samtools_sort_and_index(results_dir, aligned_bam_filename(outfile_prefix))
 
     # Run Deduplication
     if args.dedup:
         print('\033[33mRunning Deduplication: \033[0m', flush=True)
-        dedup(results_dir,folder_name, args)
+        star_dedup(results_dir,folder_name, args)
 
     final_bam = get_final_bam_name(results_dir, folder_name, args)
 
@@ -428,6 +452,19 @@ def run_config(config):
     data_folders = sorted(rnaseq_data_folder_list(config))
     for data_folder in data_folders:
         run_config_single(config, data_folder)
+
+
+def quickcheck_bam(bam_file_path):
+    """
+    Quick check if the bam file exists and is valid
+    """
+    if not os.path.exists(bam_file_path):
+        return False
+    try:
+        p = subprocess.run(["samtools", "quickcheck", bam_file_path], check=True, capture_output=False)
+    except subprocess.CalledProcessError:
+        return False
+    return True
 
 
 if __name__ == '__main__':
