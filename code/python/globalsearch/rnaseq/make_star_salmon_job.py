@@ -22,21 +22,27 @@ data_folder=${data_folders[$SLURM_ARRAY_TASK_ID]}
 
 {{sbatch_extras}}
 
-python3 -m globalsearch.rnaseq.run_star_salmon {{config_file}} $data_folder
+time python3 -m globalsearch.rnaseq.run_star_salmon {{config_file}} $data_folder
 """
 
 DESCRIPTION = """make_star_salmon_job.py - Create STAR Salmon job file for Slurm"""
 
 def make_sbatch_options(config):
     result = ""
-    for option in config['sbatch_options']['star_salmon']['options']:
-        result += "#SBATCH %s\n" % option
+    try:
+        for option in config['sbatch_options']['options']:
+            result += "#SBATCH %s\n" % option
+    except KeyError:
+        pass
     return result
 
 def make_sbatch_extras(config):
     result = ""
-    for extra in config['sbatch_options']['star_salmon']['extras']:
-        result += "%s\n" % extra
+    try:
+        for extra in config['sbatch_options']['extras']:
+            result += "%s\n" % extra
+    except KeyError:
+        pass
     return result
 
 if __name__ == '__main__':
