@@ -46,6 +46,8 @@ def rnaseq_data_folder_list(config, filesys=OSFS('/')):
                     includes_list.append(line.strip())
         elif len(include_path) > 0 and not filesys.exists(include_path):
             logging.warning("include file '%s' does not exist", include_path)
+            # this is most likely an error, so we return an empty list
+            return []
     except:
         # ignore any errors in the include_file
         pass
