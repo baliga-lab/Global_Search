@@ -9,7 +9,7 @@ from globalsearch.rnaseq.find_files import rnaseq_data_folder_list
 
 TEMPLATE = """#!/bin/bash
 
-#SBATCH -J star_salmon_{{genome}}
+#SBATCH -J {{rnaseq_algorithm}}_{{organism0}}
 #SBATCH -o {{log_dir}}/"%A"."%a".out
 #SBATCH -e {{log_dir}}/"%A"."%a".out
 #SBATCH --array={{array_range}}
@@ -57,6 +57,7 @@ if __name__ == '__main__':
     genome = os.path.basename(os.path.normpath(config['genome_dir']))
     config['config_file'] = args.configfile
     config['genome'] = genome
+    config['organism0'] = config['organisms'][0]
     config['sbatch_extras'] = make_sbatch_extras(config)
     config['sbatch_options_comments'] = make_sbatch_options(config)
 

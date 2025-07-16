@@ -41,7 +41,8 @@ def run_htseq_count(final_bam, htseq_resultdir,
 
     htseq_resultfile = os.path.join(htseq_resultdir,
                                     "%s_htseqcounts.txt" % folder_name)
-    if not os.path.exists(htseq_resultfile):
+    force_htseq_count = True
+    if not os.path.exists(htseq_resultfile) or force_htseq_count:
         cmd = ["htseq-count",
                "-s", args.htseqStranded,
                "-t", args.htseqFeatureType,

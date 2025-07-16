@@ -249,7 +249,7 @@ def get_final_bam_name(results_dir, folder_name, args):
     This is to preserve it upon cleanup
     """
     outfile_prefix = get_outfile_prefix(results_dir, folder_name, args.starPrefix)
-    print("OUTFILE PREFIX: ", outfile_prefix, flush=True)
+    #print("OUTFILE PREFIX: ", outfile_prefix, flush=True)
     # check if we are performing deduplication
     if args.dedup:
         salmon_input = '%sNoSingletonCollated.out.bam' % (outfile_prefix)
@@ -382,26 +382,33 @@ def run_pipeline(data_folder, results_folder, genome_dir, genome_fasta, args,
     # Collect Trimmed data for input into STAR
     first_pair_group, second_pair_group = collect_trimmed_data(data_trimmed_dir, is_gzip, is_paired_end)
 
-    # Run STAR
-    run_star(first_pair_group, second_pair_group, results_dir, folder_name, genome_dir, is_gzip, args)
-
-    # Run samtools, sorting and indexing
-    outfile_prefix = get_outfile_prefix(results_dir, folder_name, args.starPrefix)
-    run_samtools_sort_and_index(results_dir, aligned_bam_filename(outfile_prefix))
-
-    # Run Deduplication
-    if args.dedup:
-        print('\033[33mRunning Deduplication: \033[0m', flush=True)
-        star_dedup(results_dir,folder_name, args)
-
     final_bam = get_final_bam_name(results_dir, folder_name, args)
 
+    # if final bam exists, we can safely skip this part
+    if not quickcheck_bam(final_bam):
+        # Run STAR
+        run_star(first_pair_group, second_pair_group, results_dir, folder_name, genome_dir, is_gzip, args)
+
+        # Run samtools, sorting and indexing
+        outfile_prefix = get_outfile_prefix(results_dir, folder_name, args.starPrefix)
+        run_samtools_sort_and_index(results_dir, aligned_bam_filename(outfile_prefix))
+
+        # Run Deduplication
+        if args.dedup:
+            print('\033[33mRunning Deduplication: \033[0m', flush=True)
+            star_dedup(results_dir,folder_name, args)
+    else:
+        print("Final bam exists, skipping STAR and samtools steps", flush=True)
+
+    # After final BAM exists
     if args.use_htseq:
+        print("Running htseq-count")
         htseq_args = HtseqArgs(config)
         run_htseq_count(final_bam, htseq_dir, folder_name, args.genome_gff,
                         htseq_args)
     else:
         # Run Salmon Quant
+        print("running salmon quant")
         if args.salmon_genome_fasta is not None:
             genome_fasta = args.salmon_genome_fasta
 
@@ -429,7 +436,8 @@ def aws_s3_sync(result_dir, bucket_url):
 
 def run_config_single(config, data_folder):
     starsalmon_args = STARSalmonArgs(config)
-    run_pipeline(os.path.join(config['input_dir'], data_folder),
+    data_path = os.path.join(config['input_dir'], data_folder)
+    run_pipeline(data_path,
                  config['output_dir'],
                  config['genome_dir'],
                  config['genome_fasta'],
