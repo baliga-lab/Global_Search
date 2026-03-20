@@ -115,7 +115,7 @@ For clarity and organization, the pipeline outputs are recommended to be structu
 │   │   │   ├── ...
 │   │   ├── STAR_TPMCalculator_<sample_organism_name>_Reads_Matrix_Merged.csv
 │   │   ├── STAR_TPMCalculator_<sample_organism_name>_TPMs_Matrix_Merged.csv
-│   ├── tpmcalculator/
+│   ├── tpmcalculator_output/
 │   │   ├── sample_1/
 │   │   │   ├── <TPMCalculator output files>
 │   │   │   ├── ...
