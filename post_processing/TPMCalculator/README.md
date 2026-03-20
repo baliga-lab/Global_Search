@@ -1,12 +1,23 @@
 
 # mRNA Quantification using TPMCalculator
 
+<a id="introduction"></a>
 ## Introduction
 
 This pipeline quantifies mRNA abundance directly from BAM file alignments using **TPMCalculator** and generates visualizations to assess the results. It is designed to process multiple samples and combine results into comprehensive matrices for downstream analysis. 
 
 The pipeline is organized into four scripts, each responsible for a different stage of processing and analysis. These scripts require access to a **SLURM** job manager for submitting and running the workflow.
 
+## Table of Contents
+* [Introduction](#introduction)
+* [Installation](#installation)
+  * [Environment](#environment)
+* [TPMCalculator](#tpmcalc)
+* [GFF3 to GTF](#gff3_to_gtf)
+* [Pipeline Overview](#pipeline_overview)
+* [Recommended Directory Structure](#dir_struc)
+
+<a id="installation"></a>
 ## Installation
 This repository can be cloned locally by running the following `git` command:
 ```bash
@@ -36,6 +47,7 @@ conda deactivate
 
 **Please note! This environment file does not contain the packages required to run the whole Global_Search pipeline. The packages included are only enough to run the scripts in the TPMCalculator section**. Installation instructions for the Gloabl_Search pipleine can be found in the main [README](../../README.md)
 
+<a id="tpmcalc"></a>
 ## TPMCalculator
 
 TPMCalculator requires two inputs:  
@@ -48,7 +60,8 @@ It produces four output files per sample containing TPM values and raw read coun
 - **Exons**  
 - **Introns**
 
-## GFF to GTF
+<a id="gff3_to_gtf"></a>
+## GFF3 to GTF
 
 While there are several ways to convert a GFF file to a GTF file, a custom script was used to facilitate this conversion. The [`gff3_to_gtf.py`](./scripts/gff3_to_gtf.py) script...
 - Reads a GFF3 file
@@ -61,11 +74,12 @@ Run the following command to convert a GFF3 file to a GTF file:
 python3 gff3_to_gtf.py <input_gff3> <output_gtf>
 ```
 
+<a id="pipeline_overview"></a>
 ## Pipeline Overview
 
 The scripts should be run in the following order:
 
-0. **Generate the GTF file (if applicable)**
+0. **gff3_to_gtf.py**
    - See instructions above. 
 
 1. **check_bam_sorted.py**  
@@ -104,6 +118,7 @@ The scripts should be run in the following order:
      - Summary CSV files of TPM and reads totals by organism (`TPM_totals_by_organism.csv`, `Reads_totals_by_organism.csv`).  
      - Barplots and summary figures (`organism_totals_barplots.png/pdf`, `organism_summary_stats.png/pdf`).  
 
+<a id="dir_struc"></a>
 ## Recommended Directory Structure
 
 For clarity and organization, the pipeline outputs are recommended to be structured as follows:
